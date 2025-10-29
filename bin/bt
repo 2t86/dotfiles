@@ -1,0 +1,665 @@
+#!/bin/bash
+
+# bt - Budget Tracker
+# Simple budget management tool
+
+set -e
+
+# Configuration
+BT_DIR="$HOME/.bt"
+DB_FILE="$BT_DIR/bt.sqlite"
+
+# Initialize directory and database
+init_db() {
+    mkdir -p "$BT_DIR"
+
+    if [ ! -f "$DB_FILE" ]; then
+        sqlite3 "$DB_FILE" <<EOF
+CREATE TABLE transactions (
+    id TEXT PRIMARY KEY,
+    date TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'transfer')),
+    bank TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    tag TEXT,
+    to_bank TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX idx_date ON transactions(date);
+CREATE INDEX idx_bank ON transactions(bank);
+CREATE INDEX idx_type ON transactions(type);
+CREATE INDEX idx_tag ON transactions(tag);
+
+CREATE TABLE banks (
+    name TEXT PRIMARY KEY,
+    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+);
+EOF
+    fi
+}
+
+# Register bank
+register_bank() {
+    local bank="$1"
+    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO banks (name) VALUES ('$bank');"
+}
+
+# Generate random 7-character ID using sha1
+generate_id() {
+    local id
+    local exists=1
+
+    # Keep generating until we get a unique ID
+    while [ $exists -ne 0 ]; do
+        id=$(date +%s%N | sha1sum | cut -d' ' -f1 | tail -c 8 | head -c 7)
+        exists=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM transactions WHERE id = '$id';")
+    done
+
+    echo "$id"
+}
+
+# Record income
+add_income() {
+    local bank="$1"
+    local amount="$2"
+    local tag="${3:-income}"
+    local date="${4:-$(date +%Y-%m-%d)}"
+
+    register_bank "$bank"
+
+    local id=$(generate_id)
+
+    sqlite3 "$DB_FILE" <<EOF
+INSERT INTO transactions (id, date, type, bank, amount, tag)
+VALUES ('$id', '$date', 'income', '$bank', $amount, '$tag');
+EOF
+
+    echo "✓ Income added: +$amount to $bank [$tag] ($date) [ID: $id]"
+}
+
+# Record expense
+add_expense() {
+    local bank="$1"
+    local amount="$2"
+    local tag="${3:-expense}"
+    local date="${4:-$(date +%Y-%m-%d)}"
+
+    register_bank "$bank"
+
+    local id=$(generate_id)
+
+    sqlite3 "$DB_FILE" <<EOF
+INSERT INTO transactions (id, date, type, bank, amount, tag)
+VALUES ('$id', '$date', 'expense', '$bank', -$amount, '$tag');
+EOF
+
+    echo "✓ Expense added: -$amount from $bank [$tag] ($date) [ID: $id]"
+}
+
+# Transfer between banks
+transfer_money() {
+    local from_bank="$1"
+    local to_bank="$2"
+    local amount="$3"
+    local tag="${4:-transfer}"
+    local date="${5:-$(date +%Y-%m-%d)}"
+
+    register_bank "$from_bank"
+    register_bank "$to_bank"
+
+    local id1=$(generate_id)
+    local id2=$(generate_id)
+
+    sqlite3 "$DB_FILE" <<EOF
+INSERT INTO transactions (id, date, type, bank, amount, tag, to_bank)
+VALUES ('$id1', '$date', 'transfer', '$from_bank', -$amount, '$tag', '$to_bank');
+
+INSERT INTO transactions (id, date, type, bank, amount, tag, to_bank)
+VALUES ('$id2', '$date', 'transfer', '$to_bank', $amount, '$tag', '$from_bank');
+EOF
+
+    echo "✓ Transfer recorded: $amount from $from_bank to $to_bank [$tag] ($date)"
+}
+
+# Show balance
+show_balance() {
+    local bank="$1"
+    local date="${2:-$(date +%Y-%m-%d)}"
+
+    echo "=== Balance (as of $date) ==="
+    echo ""
+
+    if [ -z "$bank" ]; then
+        # All banks balance
+        sqlite3 "$DB_FILE" <<EOF
+.mode column
+.headers on
+.width 15 15
+SELECT
+    bank as Bank,
+    printf('%,d', SUM(amount)) as Balance
+FROM transactions
+WHERE date <= '$date'
+GROUP BY bank
+ORDER BY bank;
+EOF
+
+        echo ""
+        echo "---"
+        local total=$(sqlite3 "$DB_FILE" "SELECT SUM(amount) FROM transactions WHERE date <= '$date';")
+        echo "Total: $(printf "%'d" $total)"
+    else
+        # Specific bank balance
+        local balance=$(sqlite3 "$DB_FILE" "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE bank = '$bank' AND date <= '$date';")
+        echo "$bank: $(printf "%'d" $balance)"
+    fi
+}
+
+# Show transaction list
+show_list() {
+    local from_date=""
+    local to_date=""
+    local bank=""
+    local tag=""
+    local limit=50
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --from)
+                from_date="$2"
+                shift 2
+                ;;
+            --to)
+                to_date="$2"
+                shift 2
+                ;;
+            --bank)
+                bank="$2"
+                shift 2
+                ;;
+            --tag)
+                tag="$2"
+                shift 2
+                ;;
+            --limit)
+                limit="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    # Build WHERE clause
+    local where_clauses=()
+    [ -n "$from_date" ] && where_clauses+=("date >= '$from_date'")
+    [ -n "$to_date" ] && where_clauses+=("date <= '$to_date'")
+    [ -n "$bank" ] && where_clauses+=("bank = '$bank'")
+    [ -n "$tag" ] && where_clauses+=("tag = '$tag'")
+
+    local where_clause=""
+    if [ ${#where_clauses[@]} -gt 0 ]; then
+        where_clause="WHERE $(IFS=' AND '; echo "${where_clauses[*]}")"
+    fi
+
+    echo "=== Transaction History ==="
+    echo ""
+
+    sqlite3 "$DB_FILE" <<EOF
+.mode column
+.headers on
+.width 7 12 8 12 12 15 15
+SELECT
+    id as ID,
+    date as Date,
+    CASE
+        WHEN type = 'income' THEN 'Income'
+        WHEN type = 'expense' THEN 'Expense'
+        WHEN type = 'transfer' THEN 'Transfer'
+    END as Type,
+    bank as Bank,
+    CASE
+        WHEN to_bank IS NOT NULL THEN to_bank
+        ELSE ''
+    END as Dest,
+    printf('%,d', amount) as Amount,
+    tag as Tag
+FROM transactions
+$where_clause
+ORDER BY date DESC, created_at DESC
+LIMIT $limit;
+EOF
+}
+
+# Show summary
+show_summary() {
+    local from_date=""
+    local to_date=""
+    local bank=""
+    local month=""
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --from)
+                from_date="$2-01"
+                shift 2
+                ;;
+            --to)
+                to_date="$2-31"
+                shift 2
+                ;;
+            --month)
+                month="$2"
+                from_date="$month-01"
+                to_date="$month-31"
+                shift 2
+                ;;
+            --bank)
+                bank="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+
+    # Default to current month
+    if [ -z "$from_date" ]; then
+        from_date="$(date +%Y-%m-01)"
+        to_date="$(date +%Y-%m-31)"
+    fi
+
+    local bank_filter=""
+    if [ -n "$bank" ]; then
+        bank_filter="AND bank = '$bank'"
+    fi
+
+    local period_label="$from_date ~ $to_date"
+    if [ -n "$month" ]; then
+        period_label="$month"
+    fi
+
+    echo "=== Summary ($period_label) ==="
+    echo ""
+
+    # Aggregate income and expenses
+    sqlite3 "$DB_FILE" <<EOF
+.mode column
+.headers on
+.width 10 15
+SELECT
+    CASE
+        WHEN type = 'income' THEN 'Income'
+        WHEN type = 'expense' THEN 'Expense'
+    END as Type,
+    printf('%,d', SUM(ABS(amount))) as Total
+FROM transactions
+WHERE date >= '$from_date'
+    AND date <= '$to_date'
+    AND type IN ('income', 'expense')
+    $bank_filter
+GROUP BY type
+ORDER BY type;
+EOF
+
+    echo ""
+    echo "--- By Tag ---"
+    echo ""
+
+    sqlite3 "$DB_FILE" <<EOF
+.mode column
+.headers on
+.width 20 15 8
+SELECT
+    tag as Tag,
+    printf('%,d', SUM(ABS(amount))) as Amount,
+    COUNT(*) as Count
+FROM transactions
+WHERE date >= '$from_date'
+    AND date <= '$to_date'
+    AND type = 'expense'
+    $bank_filter
+GROUP BY tag
+ORDER BY SUM(ABS(amount)) DESC
+LIMIT 10;
+EOF
+}
+
+# Show upcoming transactions
+show_upcoming() {
+    local days="${1:-30}"
+    local today=$(date +%Y-%m-%d)
+    local end_date=$(date -d "+$days days" +%Y-%m-%d)
+
+    echo "=== Upcoming (next $days days) ==="
+    echo ""
+
+    sqlite3 "$DB_FILE" <<EOF
+.mode column
+.headers on
+.width 12 10 12 15 15
+SELECT
+    date as Date,
+    CASE
+        WHEN type = 'income' THEN 'Income'
+        WHEN type = 'expense' THEN 'Expense'
+        WHEN type = 'transfer' THEN 'Transfer'
+    END as Type,
+    bank as Bank,
+    printf('%,d', ABS(amount)) as Amount,
+    tag as Tag
+FROM transactions
+WHERE date > '$today'
+    AND date <= '$end_date'
+ORDER BY date ASC;
+EOF
+}
+
+# Delete transaction
+delete_transaction() {
+    local id="$1"
+
+    if [ -z "$id" ]; then
+        echo "Error: transaction ID required"
+        echo "Usage: bt delete <id>"
+        echo ""
+        echo "Use 'bt list' to see transaction IDs"
+        exit 1
+    fi
+
+    # Check if transaction exists
+    local exists=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM transactions WHERE id = '$id';")
+
+    if [ "$exists" -eq 0 ]; then
+        echo "Error: transaction with ID $id not found"
+        exit 1
+    fi
+
+    # Show transaction details before deletion
+    echo "Transaction to delete:"
+    sqlite3 "$DB_FILE" <<EOF
+.mode column
+.headers on
+.width 7 12 10 12 12 15
+SELECT
+    id as ID,
+    date as Date,
+    type as Type,
+    bank as Bank,
+    amount as Amount,
+    tag as Tag
+FROM transactions
+WHERE id = '$id';
+EOF
+
+    echo ""
+    read -p "Delete this transaction? [y/N] " confirm
+
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+        sqlite3 "$DB_FILE" "DELETE FROM transactions WHERE id = '$id';"
+        echo "✓ Transaction deleted (ID: $id)"
+    else
+        echo "Deletion cancelled"
+    fi
+}
+
+# Edit transaction
+edit_transaction() {
+    local id="$1"
+
+    if [ -z "$id" ]; then
+        echo "Error: transaction ID required"
+        echo "Usage: bt edit <id>"
+        echo ""
+        echo "Use 'bt list' to see transaction IDs"
+        exit 1
+    fi
+
+    # Check if transaction exists
+    local exists=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM transactions WHERE id = '$id';")
+
+    if [ "$exists" -eq 0 ]; then
+        echo "Error: transaction with ID $id not found"
+        exit 1
+    fi
+
+    # Get current values
+    local current=$(sqlite3 "$DB_FILE" "SELECT date, type, bank, amount, tag, to_bank FROM transactions WHERE id = '$id';" | tr '|' '\n')
+    local current_date=$(echo "$current" | sed -n '1p')
+    local current_type=$(echo "$current" | sed -n '2p')
+    local current_bank=$(echo "$current" | sed -n '3p')
+    local current_amount=$(echo "$current" | sed -n '4p')
+    local current_tag=$(echo "$current" | sed -n '5p')
+    local current_to_bank=$(echo "$current" | sed -n '6p')
+
+    echo "Current transaction (ID: $id):"
+    echo "  Date:   $current_date"
+    echo "  Type:   $current_type"
+    echo "  Bank:   $current_bank"
+    echo "  Amount: $current_amount"
+    echo "  Tag:    $current_tag"
+    if [ -n "$current_to_bank" ]; then
+        echo "  To:     $current_to_bank"
+    fi
+    echo ""
+
+    # Get new values (press Enter to keep current)
+    echo "Enter new values (press Enter to keep current):"
+    echo ""
+
+    read -p "Date [$current_date]: " new_date
+    new_date=${new_date:-$current_date}
+
+    read -p "Amount [$current_amount]: " new_amount
+    new_amount=${new_amount:-$current_amount}
+
+    read -p "Tag [$current_tag]: " new_tag
+    new_tag=${new_tag:-$current_tag}
+
+    # Update transaction
+    sqlite3 "$DB_FILE" <<EOF
+UPDATE transactions
+SET date = '$new_date',
+    amount = $new_amount,
+    tag = '$new_tag'
+WHERE id = '$id';
+EOF
+
+    echo ""
+    echo "✓ Transaction updated (ID: $id)"
+}
+
+# Show help
+show_help() {
+    cat <<HELPEOF
+bt - Budget Tracker
+
+Usage:
+  bt add <bank> <amount> <tag> [--date YYYY-MM-DD]
+      Record income
+
+  bt pay <bank> <amount> <tag> [--date YYYY-MM-DD]
+      Record expense
+
+  bt move <from_bank> <to_bank> <amount> [tag] [--date YYYY-MM-DD]
+      Transfer money between banks (default tag: transfer)
+
+  bt balance [bank] [--date YYYY-MM-DD]
+      Show balance (can predict future balance with --date)
+
+  bt list [options]
+      Show transaction history (with IDs)
+      --from YYYY-MM-DD  Start date
+      --to YYYY-MM-DD    End date
+      --bank <name>      Filter by bank
+      --tag <name>       Filter by tag
+      --limit N          Number of records (default: 50)
+
+  bt delete <id>
+      Delete a transaction by ID
+
+  bt edit <id>
+      Edit a transaction by ID
+
+  bt summary [options]
+      Show summary by period
+      --from YYYY-MM     Start month
+      --to YYYY-MM       End month
+      --month YYYY-MM    Specific month
+      --bank <name>      Filter by bank
+
+  bt upcoming [--days N]
+      Show upcoming transactions (default: 30 days)
+
+Examples:
+  bt add mufg 250000 salary
+  bt pay mufg 5000 jcb --date 2025-10-28
+  bt move mufg jibun 30000
+  bt move mufg savings 50000 saving --date 2025-11-01
+  bt list
+  bt delete a3f2b1c
+  bt edit x9k4m2n
+  bt balance --date 2025-11-01
+  bt summary --month 2025-10
+  bt upcoming --days 14
+
+HELPEOF
+}
+
+# Main processing
+main() {
+    init_db
+
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    local command="$1"
+    shift
+
+    case "$command" in
+        add)
+            if [ $# -lt 3 ]; then
+                echo "Error: insufficient arguments"
+                echo "Usage: bt add <bank> <amount> <tag> [--date YYYY-MM-DD]"
+                exit 1
+            fi
+
+            local date_arg=""
+            if [ "$4" = "--date" ]; then
+                date_arg="$5"
+            fi
+
+            add_income "$1" "$2" "$3" "$date_arg"
+            ;;
+
+        pay)
+            if [ $# -lt 3 ]; then
+                echo "Error: insufficient arguments"
+                echo "Usage: bt pay <bank> <amount> <tag> [--date YYYY-MM-DD]"
+                exit 1
+            fi
+
+            local date_arg=""
+            if [ "$4" = "--date" ]; then
+                date_arg="$5"
+            fi
+
+            add_expense "$1" "$2" "$3" "$date_arg"
+            ;;
+
+        move)
+            if [ $# -lt 3 ]; then
+                echo "Error: insufficient arguments"
+                echo "Usage: bt move <from_bank> <to_bank> <amount> [tag] [--date YYYY-MM-DD]"
+                exit 1
+            fi
+
+            local tag_arg="transfer"
+            local date_arg=""
+
+            # Check if $4 is --date
+            if [ "$4" = "--date" ]; then
+                date_arg="$5"
+            elif [ -n "$4" ]; then
+                # $4 is tag
+                tag_arg="$4"
+                if [ "$5" = "--date" ]; then
+                    date_arg="$6"
+                fi
+            fi
+
+            transfer_money "$1" "$2" "$3" "$tag_arg" "$date_arg"
+            ;;
+
+        balance)
+            local bank=""
+            local date=""
+
+            # First argument is bank name if not --date
+            if [ -n "$1" ] && [ "$1" != "--date" ]; then
+                bank="$1"
+                shift
+            fi
+
+            if [ "$1" = "--date" ]; then
+                date="$2"
+            fi
+
+            show_balance "$bank" "$date"
+            ;;
+
+        list)
+            show_list "$@"
+            ;;
+
+        delete|rm)
+            if [ $# -lt 1 ]; then
+                echo "Error: transaction ID required"
+                echo "Usage: bt delete <id>"
+                exit 1
+            fi
+            delete_transaction "$1"
+            ;;
+
+        edit)
+            if [ $# -lt 1 ]; then
+                echo "Error: transaction ID required"
+                echo "Usage: bt edit <id>"
+                exit 1
+            fi
+            edit_transaction "$1"
+            ;;
+
+        summary)
+            show_summary "$@"
+            ;;
+
+        upcoming)
+            local days=30
+            if [ "$1" = "--days" ]; then
+                days="$2"
+            fi
+            show_upcoming "$days"
+            ;;
+
+        help|--help|-h)
+            show_help
+            ;;
+
+        *)
+            echo "Error: unknown command '$command'"
+            echo ""
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
