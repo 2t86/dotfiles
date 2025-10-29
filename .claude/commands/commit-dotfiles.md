@@ -1,3 +1,7 @@
+---
+allowed-tools: Bash(git --git-dir="$HOME/.dotfiles" --work-tree="$HOME" *)
+---
+
 # Commit Dotfiles
 
 Create a commit for the dotfiles repository with the following requirements:
