@@ -137,11 +137,19 @@ if (( $+commands[emacs] )); then
 fi
 
 if (( $+commands[nnn] )); then
-    export NNN_OPTS=BHo
+    export NNN_OPTS=ABdHJoS
+    export NNN_FCOLORS=c1e2272e006033f7c6d6abc4
+
+    typeset -TUx NNN_BMS nnn_bms \;
+    typeset -TUx NNN_PLUG nnn_plug \;
 fi
 
 if (( $+commands[pass] )); then
     export PASSWORD_STORE_ENABLE_EXTENSIONS=true
+fi
+
+if (( $+commands[vim] )); then
+    export EDITOR=vim
 fi
 
 () {
