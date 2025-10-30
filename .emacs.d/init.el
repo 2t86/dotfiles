@@ -206,15 +206,9 @@
     (unless (file-directory-p jisyo)
       (skk-get jisyo))))
 
-(use-package editorconfig)
-
-(use-package folding)
-
 (use-package macrostep
   :commands macrostep-expand
   :bind ("C-c e" . macrostep-expand))
-
-(use-package magit)
 
 (use-package popwin
   :hook (after-init . popwin-mode)
@@ -227,6 +221,10 @@
 ;; (use-package xclip :hook (after-init . xclip-mode))
 
 (use-package dockerfile-mode)
+(use-package editorconfig)
+(use-package folding)
 (use-package lua-mode)
+(use-package magit)
 (use-package markdown-mode)
+(use-package toml-mode)
 (use-package yaml-mode)
