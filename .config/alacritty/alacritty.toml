@@ -1,0 +1,43 @@
+[window]
+dimensions    = { columns = 90, lines = 30 }
+padding       = { x = 10, y = 10 }
+option_as_alt = "Both"
+
+[font]
+normal        = { family = "Iosevka Term", style = "Regular" }
+bold          = { family = "Iosevka Term", style = "Bold" }
+italic        = { family = "Iosevka Term", style = "Italic" }
+bold_italic   = { family = "Iosevka Term", style = "Bold Italic" }
+size          = 14
+
+[colors]
+
+cursor    = { text = "#21084a", cursor = "#ff2603" }
+selection = { text = "#21084a", cursor = "#ff2603" }
+
+[colors.primary]
+foreground = "#fffbf6"
+background = "#21084a"
+
+[colors.normal]
+black   = "#000000"
+red     = "#ff2603"
+green   = "#9be205"
+yellow  = "#ffc400"
+blue    = "#00a2fa"
+magenta = "#815bb5"
+cyan    = "#00deef"
+white   = "#ffffff"
+
+[colors.bright]
+black   = "#565656"
+red     = "#ff4250"
+green   = "#b8e36e"
+yellow  = "#ffd852"
+blue    = "#00a6ff"
+magenta = "#ac7bf0"
+cyan    = "#74fdf3"
+white   = "#ffffff"
+
+[cursor]
+style = { shape = "Underline", blinking = "Never" }
