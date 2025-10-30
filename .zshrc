@@ -139,7 +139,7 @@ fi
 if (( $+commands[nnn] )); then
     export NNN_OPTS=aAdJo
 
-    export NNN_OPENER=open-with-viewed
+    export NNN_OPENER=~/.config/nnn/plugins/open-with-viewed
 
     typeset -TUx NNN_BMS nnn_bms \;
 
