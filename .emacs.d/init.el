@@ -62,7 +62,7 @@
 
 (setq global-auto-revert-mode t)
 
-(setq indent-tabs-mode nil)
+(setq-default indent-tabs-mode nil)
 
 (setq make-backup-files nil)
 

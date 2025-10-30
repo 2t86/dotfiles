@@ -1,6 +1,6 @@
 if (( $+commands[tmux] && ! $+TMUX && $+SSH_CONNECTION )); then
-    tmux has 2>/dev/null && exec tmux attach
-    exec tmux new
+    tmux has -t ssh 2>/dev/null && exec tmux attach -t ssh
+    exec tmux new -s ssh
 fi
 
 typeset -U path
@@ -137,11 +137,11 @@ if (( $+commands[emacs] )); then
 fi
 
 if (( $+commands[nnn] )); then
-    export NNN_OPTS=ABdHJoS
-    export NNN_FCOLORS=c1e2272e006033f7c6d6abc4
+    export NNN_OPTS=aAdJo
 
     typeset -TUx NNN_BMS nnn_bms \;
     typeset -TUx NNN_PLUG nnn_plug \;
+    nnn_plug+=(m:toggle-viewed v:filter-viewed)
 fi
 
 if (( $+commands[pass] )); then

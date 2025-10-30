@@ -1,0 +1,21 @@
+#!/usr/bin/bash
+
+file="$1"
+
+if [[ -f "$file" ]]; then
+    setfattr -n user.viewed -v "$(date '+%Y-%m-%d %H:%M:%S')" "$file" 2>/dev/null
+
+    if command -v xdg-open &>/dev/null; then
+        xdg-open "$file" &>/dev/null &
+    elif command -v open &>/dev/null; then
+        open "$file" &>/dev/null &
+    elif [[ -n "$EDITOR" ]]; then
+        $EDITOR "$file"
+    else
+        echo "Error: No suitable opener found (xdg-open, open, or EDITOR)"
+        exit 1
+    fi
+else
+    echo "Error: Not a regular file: $file"
+    exit 1
+fi
