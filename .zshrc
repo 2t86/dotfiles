@@ -4,10 +4,15 @@ if (( $+commands[tmux] && ! $+TMUX && $+SSH_CONNECTION )); then
 fi
 
 typeset -U path
-path+=(~/bin(N-/) ~/.local/share/bin(N-/))
+path+=(~/bin(N-/) ~/.local/bin(N-/) ~/.local/share/bin(N-/))
+
+typeset -U fpath
+fpath+=(~/.local/share/zsh/site-functions(N-/))
 
 typeset -U cdpath
 cdpath+=(~ ~/src(N-/))
+
+bindkey -e
 
 setopt EXTENDED_GLOB
 setopt NULL_GLOB
@@ -68,36 +73,59 @@ bindkey  clear_screen_and_scrollback
 reset_broken_terminal() { printf '%b' '\e[0m\e(B\e)0\017\e[?5l\e7\e[0;0r\e8' }
 precmd_functions+=(reset_broken_terminal)
 
-function zc() {
+function zcomp() {
     local f
     for f; do zcompile -R -- $f.zwc $f; done
 }
 
-func5ion s() {
+function src-all() {
     local f
     for f; do source $f; done
 }
 
-function pl() {
+function plugload() {
     local repo=https://github.com/$1
     local plug=~/.zsh-plugins/$1
     shift
     if [[ ! -e $plug ]]; then
         git clone --depth=1 $repo $plug
-        zc $plug/*.zsh $plug/**/*.zsh
+        zcomp $plug/*.zsh $plug/**/*.zsh
     fi
     if (( $# )); then
-        s ${@/#/$plug/}(N-)
+        src-all ${@/#/$plug/}(N-)
     else
-        s $plug/*.plugin.zsh(N-)
+        src-all $plug/*.plugin.zsh(N-)
     fi
 }
 
-pl zsh-users/zsh-completions
-pl zsh-users/zsh-autosuggestions
-pl zsh-users/zsh-syntax-highlighting
-pl zsh-users/zaw
-pl sorin-ionescu/prezto modules/{command-not-found,completion,history}/init.zsh
+function eval-cache() {
+    local cmd=$1 cache=~/.cache/zsh/eval/${1%% *}.zsh
+    if [[ ! -s $cache ]]; then
+        install -Dm0644 /dev/null $cache
+        eval $cmd > $cache
+    fi
+    if [[ ! -e $cache.zwc || $cache -nt $cache.zwc ]]; then
+        zcompile $cache
+    fi
+    source $cache
+}
+
+function func-cache() {
+    local cmd=$1 compfile=~/.local/share/zsh/site-functions/_${1%% *}
+    if [[ ! -s $compfile ]]; then
+        install -Dm0644 /dev/null $compfile
+        eval $cmd > $compfile
+    fi
+    if [[ ! -e $compfile.zwc || $compfile -nt $compfile.zwc ]]; then
+        zcompile $compfile
+    fi
+}
+
+plugload zsh-users/zsh-completions
+plugload zsh-users/zsh-autosuggestions
+plugload zsh-users/zsh-syntax-highlighting
+plugload zsh-users/zaw
+plugload sorin-ionescu/prezto modules/{command-not-found,completion,history}/init.zsh
 
 PURE_PROMPT_SYMBOL='›'
 PURE_PROMPT_VICMD_SYMBOL='‹'
@@ -106,9 +134,7 @@ zstyle ':prompt:pure:git:stash' show yes
 zstyle ':prompt:pure:prompt:success' color green
 zstyle ':prompt:pure:prompt:error' color red
 
-pl sindresorhus/pure {async,pure}.zsh
-
-unfunction zc pl
+plugload sindresorhus/pure {async,pure}.zsh
 
 alias relogin='exec zsh -l'
 alias ls='ls -Xv --color=auto --group-directories-first'
@@ -167,3 +193,5 @@ fi
     fi
     source $src
 } ~/.zshrc.*~.zwc~*\~
+
+unfunction zcomp src-all plugload eval-cache func-cache
