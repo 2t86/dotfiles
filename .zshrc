@@ -83,7 +83,7 @@ function src-all() {
     for f; do source $f; done
 }
 
-function plugload() {
+function plug() {
     local repo=https://github.com/$1
     local plug=~/.zsh-plugins/$1
     shift
@@ -121,11 +121,11 @@ function func-cache() {
     fi
 }
 
-plugload zsh-users/zsh-completions
-plugload zsh-users/zsh-autosuggestions
-plugload zsh-users/zsh-syntax-highlighting
-plugload zsh-users/zaw
-plugload sorin-ionescu/prezto modules/{command-not-found,completion,history}/init.zsh
+plug zsh-users/zsh-completions
+plug zsh-users/zsh-autosuggestions
+plug zsh-users/zsh-syntax-highlighting
+plug zsh-users/zaw
+plug sorin-ionescu/prezto modules/{command-not-found,completion}/init.zsh
 
 PURE_PROMPT_SYMBOL='›'
 PURE_PROMPT_VICMD_SYMBOL='‹'
@@ -134,7 +134,7 @@ zstyle ':prompt:pure:git:stash' show yes
 zstyle ':prompt:pure:prompt:success' color green
 zstyle ':prompt:pure:prompt:error' color red
 
-plugload sindresorhus/pure {async,pure}.zsh
+plug sindresorhus/pure {async,pure}.zsh
 
 alias relogin='exec zsh -l'
 alias ls='ls -Xv --color=auto --group-directories-first'
@@ -154,8 +154,10 @@ compdef dotfiles=git
 if [[ ! -d $DOTFILES_GIT_DIR ]]; then
     dotfiles init
     dotfiles config init.defaultBranch main
+    dotfiles branch --set-upstream-to=origin/main main
     dotfiles config user.name "$USER"
     dotfiles config user.email "$USER@$HOST"
+    dotfiles config pull.rebase false
 fi
 
 if (( $+commands[emacs] )); then
@@ -194,4 +196,4 @@ fi
     source $src
 } ~/.zshrc.*~.zwc~*\~
 
-unfunction zcomp src-all plugload eval-cache func-cache
+unfunction zcomp src-all plug eval-cache func-cache
