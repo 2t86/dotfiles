@@ -66,16 +66,16 @@ function my-backward-kill-word() { zle backward-kill-word }
 zle -N my-backward-kill-word
 bindkey w my-backward-kill-word
 
-clear_screen_and_scrollback() { printf '\x1Bc'; zle clear-screen }
+function clear_screen_and_scrollback() { printf '\x1Bc'; zle clear-screen }
 zle -N clear_screen_and_scrollback
 bindkey  clear_screen_and_scrollback
 
-reset_broken_terminal() { printf '%b' '\e[0m\e(B\e)0\017\e[?5l\e7\e[0;0r\e8' }
+function reset_broken_terminal() { printf '%b' '\e[0m\e(B\e)0\017\e[?5l\e7\e[0;0r\e8' }
 precmd_functions+=(reset_broken_terminal)
 
-function zcomp() {
+function zcompile-all() {
     local f
-    for f; do zcompile -R -- $f.zwc $f; done
+    for f; do [[ ! -f $f.zwc || $f -nt $f.zwc ]] && zcompile -U $f; done
 }
 
 function src-all() {
@@ -83,18 +83,16 @@ function src-all() {
     for f; do source $f; done
 }
 
-function plug() {
-    local repo=https://github.com/$1
-    local plug=~/.zsh-plugins/$1
-    shift
-    if [[ ! -e $plug ]]; then
-        git clone --depth=1 $repo $plug
-        zcomp $plug/*.zsh $plug/**/*.zsh
+function src-plug() {
+    local r=https://github.com/$1 p=~/.local/share/zsh/plugins/$1; shift
+    if [[ ! -e $p ]]; then
+        git clone --depth=1 $r $p
+        zcompile-all $p/*.zsh(N-) $p/**/*.zsh(N-)
     fi
     if (( $# )); then
-        src-all ${@/#/$plug/}(N-)
+        src-all ${@/#/$p/}(N-)
     else
-        src-all $plug/*.plugin.zsh(N-)
+        src-all $p/*.plugin.zsh(N-) 
     fi
 }
 
@@ -104,9 +102,7 @@ function eval-cache() {
         install -Dm0644 /dev/null $cache
         eval $cmd > $cache
     fi
-    if [[ ! -e $cache.zwc || $cache -nt $cache.zwc ]]; then
-        zcompile $cache
-    fi
+    zcompile-all $cache
     source $cache
 }
 
@@ -116,16 +112,14 @@ function func-cache() {
         install -Dm0644 /dev/null $compfile
         eval $cmd > $compfile
     fi
-    if [[ ! -e $compfile.zwc || $compfile -nt $compfile.zwc ]]; then
-        zcompile $compfile
-    fi
+    zcompile-all $compfile
 }
 
-plug zsh-users/zsh-completions
-plug zsh-users/zsh-autosuggestions
-plug zsh-users/zsh-syntax-highlighting
-plug zsh-users/zaw
-plug sorin-ionescu/prezto modules/{command-not-found,completion}/init.zsh
+src-plug zsh-users/zsh-completions
+src-plug zsh-users/zsh-autosuggestions
+src-plug zsh-users/zsh-syntax-highlighting
+src-plug zsh-users/zaw
+src-plug sorin-ionescu/prezto modules/{command-not-found,completion}/init.zsh
 
 PURE_PROMPT_SYMBOL='›'
 PURE_PROMPT_VICMD_SYMBOL='‹'
@@ -134,7 +128,7 @@ zstyle ':prompt:pure:git:stash' show yes
 zstyle ':prompt:pure:prompt:success' color green
 zstyle ':prompt:pure:prompt:error' color red
 
-plug sindresorhus/pure {async,pure}.zsh
+src-plug sindresorhus/pure {async,pure}.zsh
 
 alias relogin='exec zsh -l'
 alias ls='ls -Xv --color=auto --group-directories-first'
@@ -187,13 +181,6 @@ if (( $+commands[vim] )); then
     export EDITOR=vim
 fi
 
-() {
-    local src=$1 zwc=$1.zwc
-    [[ -n $src ]] || return 0
-    if [[ ! -f $zwc || $src -nt $zwc ]]; then
-        zcompile $src
-    fi
-    source $src
-} ~/.zshrc.*~.zwc~*\~
+() { zcompile-all $@; src-all $@ } ~/.zshrc.*~*.zwc~*~
 
-unfunction zcomp src-all plug eval-cache func-cache
+unfunction zcompile-all src-all src-plug eval-cache func-cache
