@@ -148,15 +148,15 @@
   (whitespace-display-mappings '((space-mark ?\u3000 [?\u25a1]) (tab-mark ?\t [?\u00bb ?\t] [?\\ ?\t])))
   (whitespace-action '(auto-cleanup)))
 
-(use-package lsp-mode
-  :hook (((python-mode js-mode typescript-mode rust-mode go-mode c-mode c++-mode) .
-          lsp-deferred)
-         (lsp-mode . lsp-enable-which-key-integration))
-  :commands (lsp lsp-deferred)
-  :custom
-  (lsp-completion-provider :capf)
-  (lsp-idle-delay 0.5)
-  (lsp-keymap-prefix "C-c l"))
+;; (use-package lsp-mode
+;;   :hook (((python-mode js-mode typescript-mode rust-mode go-mode c-mode c++-mode) .
+;;           lsp-deferred)
+;;          (lsp-mode . lsp-enable-which-key-integration))
+;;   :commands (lsp lsp-deferred)
+;;   :custom
+;;   (lsp-completion-provider :capf)
+;;   (lsp-idle-delay 0.5)
+;;   (lsp-keymap-prefix "C-c l"))
 
 (defun my-add-company-backends (backends)
   (require 'company)

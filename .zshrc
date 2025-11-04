@@ -92,7 +92,7 @@ function src-plug() {
     if (( $# )); then
         src-all ${@/#/$p/}(N-)
     else
-        src-all $p/*.plugin.zsh(N-) 
+        src-all $p/*.plugin.zsh(N-)
     fi
 }
 
@@ -161,16 +161,12 @@ fi
 if (( $+commands[nnn] )); then
     export NNN_OPTS=aAdJo
 
-    export NNN_OPENER=~/.config/nnn/plugins/open-with-viewed
-
     typeset -TUx NNN_BMS nnn_bms \;
+    typeset -TUx NNN_PLUG nnn_plug \;
 
     if [[ ! -f ~/.config/nnn/plugins/.nnn-plugin-helper ]]; then
         curl -fsSL https://raw.githubusercontent.com/jarun/nnn/master/plugins/getplugs | sh
     fi
-
-    typeset -TUx NNN_PLUG nnn_plug \;
-    nnn_plug+=(m:toggle-viewed v:filter-viewed)
 fi
 
 if (( $+commands[pass] )); then
