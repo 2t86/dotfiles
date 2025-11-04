@@ -1,0 +1,10 @@
+#!/bin/bash
+# Delete video file (respects USE_TRASH config)
+
+if [ -z "$1" ]; then
+    echo "No file selected" >&2
+    exit 1
+fi
+
+video-tracker delete "$1"
+read -n 1 -s -r -p "Press any key to continue..."
