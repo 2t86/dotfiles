@@ -1,0 +1,319 @@
+#!/bin/bash
+
+set -euo pipefail
+
+VERSION="1.0.0"
+SCRIPT_DIR="${0%/*}"
+CONFIG_DIR="$HOME/.video-tracker"
+CONFIG_FILE="$CONFIG_DIR/config"
+
+DB_PATH="$CONFIG_DIR/tracker.sqlite"
+MARK_THRESHOLD=80
+VIDEO_EXTENSIONS="mp4,mkv,webm,avi,mov"
+AUTO_CLEANUP_DAYS=90
+USE_TRASH=false
+
+load_config() {
+    [[ -f "$CONFIG_FILE" ]] || return 0
+    source "$CONFIG_FILE"
+}
+
+find_videos() {
+    local exts="${VIDEO_EXTENSIONS//,/|}"
+    find . -type f -regextype posix-extended -iregex ".*\.($exts)$" 2>/dev/null
+}
+
+sql() {
+    cat | sqlite3 "$@" "$DB_PATH"
+}
+
+cmd_init() {
+    mkdir -p "$CONFIG_DIR"
+
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        cat > "$CONFIG_FILE" <<EOF
+# Video Tracker Configuration
+DB_PATH=\$HOME/.video-tracker/tracker.sqlite
+MARK_THRESHOLD=80
+VIDEO_EXTENSIONS=mp4,mkv,webm,avi,mov
+AUTO_CLEANUP_DAYS=90
+USE_TRASH=1
+EOF
+        echo "✓ Config created: $CONFIG_FILE"
+    fi
+
+    sql <<EOF
+CREATE TABLE IF NOT EXISTS videos (
+    path TEXT PRIMARY KEY,
+    status TEXT CHECK(status IN ('watched', 'unwatched', 'skip')),
+    progress REAL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_status ON videos(status);
+EOF
+    echo "✓ Database initialized: $DB_PATH"
+    echo ""
+    echo "Add to ~/.bashrc or ~/.zshrc:"
+    echo '  export NNN_PLUG="f:vf;s:vs;d:vd"'
+    echo ""
+    echo "Note: USE_TRASH=$USE_TRASH"
+
+    if (( USE_TRASH )); then
+        if ! command -v trash &> /dev/null && ! command -v gio &> /dev/null; then
+            echo "⚠ trash-cli not found. Install with: sudo apt install trash-cli"
+            echo "  Or set USE_TRASH=false in $CONFIG_FILE"
+        fi
+    fi
+}
+
+videos() {
+    local q="SELECT COUNT(*) FROM videos"
+    (( $# )) && q="$q WHERE status = '$1'"
+    sql <<< "$q"
+}
+
+cmd_stats() {
+    if [[ ! -f "$DB_PATH" ]]; then
+        echo "Database not found. Run: video-tracker init"
+        exit 1
+    fi
+
+    local total=$(videos)
+    local watched=$(videos watched)
+    local unwatched=$(videos unwatched)
+    local skip=$(videos skip)
+    local db_size=$(du -h "$DB_PATH" 2>/dev/null | cut -f1)
+
+    echo "=== Video Tracker Stats ==="
+    echo "Database:  $DB_PATH"
+    echo "Size:      $db_size"
+    echo ""
+    echo "Total:     $total"
+    echo "Watched:   $watched"
+    echo "Unwatched: $unwatched"
+    echo "Skip:      $skip"
+
+    if (( total )); then
+        local watched_pct=$((watched * 100 / total))
+        echo ""
+        echo "Progress:  $watched_pct% watched"
+    fi
+}
+
+cmd_filter() {
+    local mode="${1:-all}"
+    local current_dir="$PWD"
+
+    case "$mode" in
+        watched)
+            sql <<< "SELECT path FROM videos WHERE status='watched' AND path LIKE '$current_dir/%'"
+            ;;
+        unwatched)
+            find_videos | while read -r file; do
+                local abs_path=$(realpath "$file")
+                local n=$(sql <<< "SELECT COUNT(*) FROM videos WHERE path = '$abs_path'")
+                if (( ! n )); then
+                    cmd_mark "$abs_path" "unwatched" &>/dev/null
+                fi
+                local status=$(sql <<< "SELECT status FROM videos WHERE path='$abs_path'")
+                if [[ "$status" = "unwatched" ]]; then
+                    echo "$file"
+                fi
+            done
+            ;;
+        skip)
+            sql <<< "SELECT path FROM videos WHERE status='skip' AND path LIKE '$current_dir/%'"
+            ;;
+        all)
+            find_videos
+            ;;
+        *)
+            echo "Unknown filter mode: $mode" >&2
+            exit 1
+            ;;
+    esac
+}
+
+cmd_mark() {
+    local file="${1:?Missing file path}"
+    local status="${2:-skip}"
+
+    if [[ ! -f "$file" ]]; then
+        echo "File not found: $file" >&2
+        exit 1
+    fi
+
+    local abs_path=$(realpath "$file")
+    sql <<< "INSERT OR REPLACE INTO videos (path, status, updated_at) VALUES ('$abs_path', '$status', datetime('now'))"
+    echo "Marked as $status: $abs_path"
+}
+
+cmd_delete() {
+    local file="${1:?Missing file path}"
+
+    if [[ ! -f "$file" ]]; then
+        echo "File not found: $file" >&2
+        exit 1
+    fi
+
+    local abs_path=$(realpath "$file")
+    local filename=$(basename "$abs_path")
+
+    if [ "${2:-}" != "--yes" ] && [ "${2:-}" != "-y" ]; then
+        if (( USE_TRASH )); then
+            read -p "Move '$filename' to trash? [y/N] " -n 1 -r
+        else
+            read -p "Permanently delete '$filename'? [y/N] " -n 1 -r
+        fi
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Cancelled."
+            exit 0
+        fi
+    fi
+
+    if (( USE_TRASH )); then
+        if command -v trash &> /dev/null; then
+            trash "$abs_path"
+            echo "Moved to trash: $filename"
+        elif command -v gio &> /dev/null; then
+            gio trash "$abs_path"
+            echo "Moved to trash: $filename"
+        else
+            echo "Error: trash-cli or gio is required when USE_TRASH=1" >&2
+            echo "Install: sudo apt install trash-cli" >&2
+            echo "Or set USE_TRASH=false in $CONFIG_FILE" >&2
+            exit 1
+        fi
+    else
+        rm -f "$abs_path"
+        echo "Deleted: $filename"
+    fi
+
+    sql <<< "DELETE FROM videos WHERE path='$(echo "$abs_path" | sed "s/'/''/g")'"
+}
+
+cmd_list() {
+    local status="${1:-all}"
+
+    case "$status" in
+        watched|unwatched|skip)
+            sql <<< "SELECT path, datetime(updated_at, 'localtime') FROM videos WHERE status='$status' ORDER BY updated_at DESC" | \
+                while IFS='|' read -r path date; do
+                    echo "[$date] $path"
+                done
+            ;;
+        all)
+            sql <<< "SELECT status, path, datetime(updated_at, 'localtime') FROM videos ORDER BY updated_at DESC" | \
+                while IFS='|' read -r status path date; do
+                    printf "[%s] [%s] %s\n" "$date" "$status" "$path"
+                done
+            ;;
+        *)
+            echo "Unknown status: $status" >&2
+            exit 1
+            ;;
+    esac
+}
+
+cmd_cleanup() {
+    echo "Cleaning up video tracker database..."
+    echo "DB: $DB_PATH"
+
+    local total_before=$(sql <<< "SELECT COUNT(*) FROM videos")
+    echo "Total records before: $total_before"
+
+    # 存在しないファイルのレコードを削除
+    local deleted=0
+    sql <<< "SELECT path FROM videos" | while read -r path; do
+        if [ ! -f "$path" ]; then
+            sql <<< "DELETE FROM videos WHERE path='$(echo "$path" | sed "s/'/''/g")'"
+            ((deleted++))
+        fi
+    done
+
+    # 古い視聴済みレコード削除
+    if [ -n "$AUTO_CLEANUP_DAYS" ] && [ "$AUTO_CLEANUP_DAYS" -gt 0 ]; then
+        local old_watched=$(sql <<< "SELECT COUNT(*) FROM videos WHERE status='watched' AND updated_at < datetime('now', '-$AUTO_CLEANUP_DAYS days')")
+        sql <<< "DELETE FROM videos WHERE status='watched' AND updated_at < datetime('now', '-$AUTO_CLEANUP_DAYS days')"
+        echo "Deleted old watched records (>$AUTO_CLEANUP_DAYS days): $old_watched"
+    fi
+
+    # DB最適化
+    sql "VACUUM"
+
+    local total_after=$(sql <<< "SELECT COUNT(*) FROM videos")
+    echo "Deleted missing files: $((total_before - total_after))"
+    echo "Total records after: $total_after"
+    echo "DB size: $(du -h "$DB_PATH" | cut -f1)"
+}
+
+cmd_interactive_filter() {
+    read -n1 -p'0: all, 1: unwatch, 2: watched, 3: skip (default 0): ' choice
+    case "$choice" in
+        1) cmd_filter unwatched ;;
+        2) cmd_filter watched ;;
+        3) cmd_filter skip ;;
+        *) cmd_filter all ;;
+    esac
+}
+
+cmd_help() {
+    cat <<EOF
+Video Tracker v$VERSION - Manage video watch status
+
+Usage: video-tracker <command> [options]
+
+Commands:
+  init                Initialize database and config
+  stats               Show statistics
+  filter <mode>       Filter videos (all|watched|unwatched|skip)
+  mark <file> [status] Mark file status (watched|unwatched|skip)
+  delete <file> [-y]  Delete file and remove from DB
+  list [status]       List videos by status
+  cleanup             Remove records for deleted files
+  ifilt               Interactive filter (for nnn)
+  help                Show this help
+
+Examples:
+  video-tracker init
+  video-tracker stats
+  video-tracker filter unwatched
+  video-tracker mark video.mp4 skip
+  video-tracker delete video.mp4
+  video-tracker delete video.mp4 -y    # Skip confirmation
+  video-tracker list watched
+  video-tracker cleanup
+
+Config: $CONFIG_FILE
+Database: $DB_PATH
+Use trash: $USE_TRASH
+EOF
+}
+
+main() {
+    load_config
+
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        init) cmd_init "$@" ;;
+        stats) cmd_stats "$@" ;;
+        filter) cmd_filter "$@" ;;
+        mark) cmd_mark "$@" ;;
+        delete|rm|remove) cmd_delete "$@" ;;
+        list) cmd_list "$@" ;;
+        cleanup) cmd_cleanup "$@" ;;
+        ifilt) cmd_interactive_filter "$@" ;;
+        help|--help|-h) cmd_help ;;
+        version|--version|-v) echo "video-tracker v$VERSION" ;;
+        *)
+            echo "Unknown command: $cmd" >&2
+            echo "Run 'video-tracker help' for usage" >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
