@@ -11,7 +11,6 @@ bold_italic   = { family = "Iosevka Term", style = "Bold Italic" }
 size          = 14
 
 [colors]
-
 cursor    = { text = "#21084a", cursor = "#ff2603" }
 selection = { text = "#21084a", cursor = "#ff2603" }
 
@@ -41,3 +40,20 @@ white   = "#ffffff"
 
 [cursor]
 style = { shape = "Underline", blinking = "Never" }
+
+[keyboard]
+bindings = [
+  { key = "T",     mods = "Super",         command = { program = "/opt/homebrew/bin/tmux", args = [ "neww" ] } },
+  { key = "Tab",   mods = "Control",               command = { program = "/opt/homebrew/bin/tmux", args = [ "next" ] } },
+  { key = "Tab",   mods = "Control|Shift",         command = { program = "/opt/homebrew/bin/tmux", args = [ "prev" ] } },
+  { key = "Enter", mods = "Super",                 command = { program = "/opt/homebrew/bin/tmux", args = [ "splitw" ] } },
+  { key = "L",     mods = "Control|Super",         command = { program = "/opt/homebrew/bin/tmux", args = [ "next-layout" ] } },
+  { key = "H",     mods = "Shift|Super",           command = { program = "/opt/homebrew/bin/tmux", args = [ "selectp", "-L" ] } },
+  { key = "J",     mods = "Shift|Super",           command = { program = "/opt/homebrew/bin/tmux", args = [ "selectp", "-D" ] } },
+  { key = "K",     mods = "Shift|Super",           command = { program = "/opt/homebrew/bin/tmux", args = [ "selectp", "-U" ] } },
+  { key = "L",     mods = "Shift|Super",           command = { program = "/opt/homebrew/bin/tmux", args = [ "selectp", "-R" ] } },
+  { key = "H",     mods = "Control|Shift|Super",   command = { program = "/opt/homebrew/bin/tmux", args = [ "resizep", "-L" ] } },
+  { key = "J",     mods = "Control|Shift|Super",   command = { program = "/opt/homebrew/bin/tmux", args = [ "resizep", "-D" ] } },
+  { key = "K",     mods = "Control|Shift|Super",   command = { program = "/opt/homebrew/bin/tmux", args = [ "resizep", "-U" ] } },
+  { key = "L",     mods = "Control|Shift|Super",   command = { program = "/opt/homebrew/bin/tmux", args = [ "resizep", "-R" ] } },
+  ]
