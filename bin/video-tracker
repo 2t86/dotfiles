@@ -20,7 +20,7 @@ load_config() {
 
 find_videos() {
     local exts="${VIDEO_EXTENSIONS//,/|}"
-    find . -type f -regextype posix-extended -iregex ".*\.($exts)$" 2>/dev/null
+    find "$PWD" -type f -regextype posix-extended -iregex ".*\.($exts)$" 2>/dev/null
 }
 
 sql() {
@@ -106,20 +106,26 @@ cmd_filter() {
 
     case "$mode" in
         watched)
-            sql <<< "SELECT path FROM videos WHERE status='watched' AND path LIKE '$current_dir/%'"
+            sql <<< "SELECT path FROM videos WHERE status = 'watched' AND path LIKE '$current_dir/%'"
             ;;
         unwatched)
-            find_videos | while read -r file; do
-                local abs_path=$(realpath "$file")
-                local n=$(sql <<< "SELECT COUNT(*) FROM videos WHERE path = '$abs_path'")
-                if (( ! n )); then
-                    cmd_mark "$abs_path" "unwatched" &>/dev/null
-                fi
-                local status=$(sql <<< "SELECT status FROM videos WHERE path='$abs_path'")
-                if [[ "$status" = "unwatched" ]]; then
-                    echo "$file"
-                fi
-            done
+            #comm <(sql <<< "SELECT path FROM videos WHERE status != 'unwatched'" | sort) <(find_videos | sort)
+            comm -23 <(find_videos | sort) <(sql <<< "SELECT path FROM videos WHERE status != 'unwatched'" | sort)
+
+            #comm -12 <(sql <<< "SELECT path FROM videos WHERE status = 'watched'" | sort) <(find_videos | sort)
+
+            # find_videos | while read -r file; do
+            #     local abs_path=$(realpath "$file")
+            #     # local n=$(sql <<< "SELECT COUNT(*) FROM videos WHERE path = '$abs_path'")
+            #     # if (( ! n )); then
+            #     #     cmd_mark "$abs_path" "unwatched" &>/dev/null
+            #     # fi
+
+            #     # local status=$(sql <<< "SELECT status FROM videos WHERE path='$abs_path'")
+            #     # if [[ -z "$status" || "$status" = "unwatched" ]]; then
+            #     #     echo "$file"
+            #     # fi
+            # done
             ;;
         skip)
             sql <<< "SELECT path FROM videos WHERE status='skip' AND path LIKE '$current_dir/%'"
