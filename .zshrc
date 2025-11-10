@@ -158,8 +158,17 @@ if (( $+commands[emacs] )); then
     alias emacs='emacsclient -a emacs -t'
 fi
 
+if (( $+commands[niri] )); then
+   eval-cache 'niri completions zsh'
+fi
+
 if (( $+commands[nnn] )); then
     export NNN_OPTS=aAdJo
+    export NNN_OPENER=nuke
+
+    if (( $+commands[trash] )); then
+        export NNN_TRASH=1
+    fi
 
     typeset -TUx NNN_BMS nnn_bms \;
     typeset -TUx NNN_PLUG nnn_plug \;
