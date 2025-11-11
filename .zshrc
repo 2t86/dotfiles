@@ -1,3 +1,8 @@
+#  _._     _,-'""`-._
+# (,-.`._,'(       |\`-/|
+#     `-.-' \ )-`( , o o)
+#            `-   \`_`"'-
+
 if (( DEBUG )); then
     set -x
 fi
@@ -101,13 +106,13 @@ function src-plug() {
 }
 
 function evalcache() {
-    local cmd=$1 cache=~/.local/share/zsh/eval/${1%% *}.zsh
-    if [[ ! -s $cache ]]; then
-        install -Dm0644 /dev/null $cache
-        eval $cmd > $cache
+    local cmd=$1 evalfile=~/.local/share/zsh/eval/${1%% *}.zsh
+    if [[ ! -s $evalfile ]]; then
+        install -Dm0644 /dev/null $evalfile
+        eval $cmd > $evalfile
     fi
-    zcompile-all $cache
-    source $cache
+    zcompile-all $evalfile
+    source $evalfile
 }
 
 function compcache() {
@@ -156,6 +161,7 @@ if [[ ! -d $DOTFILES_GIT_DIR ]]; then
     dotfiles config user.name "$USER"
     dotfiles config user.email "$USER@$HOST"
     dotfiles config pull.rebase false
+    dotfiles config status.showUntrackedFiles no
 fi
 
 if (( $+commands[cargo] )); then
@@ -175,8 +181,7 @@ if (( $+commands[niri] )); then
 fi
 
 if (( $+commands[nnn] )); then
-    export NNN_OPTS=aAdJo
-    export NNN_OPENER=nuke
+    export NNN_OPTS=acdo
 
     if (( $+commands[trash] )); then
         export NNN_TRASH=1
@@ -192,6 +197,10 @@ fi
 
 if (( $+commands[pass] )); then
     export PASSWORD_STORE_ENABLE_EXTENSIONS=true
+fi
+
+if (( $+commands[tuios] )); then
+    compcache 'tuios completion zsh'
 fi
 
 if (( $+commands[vim] )); then
