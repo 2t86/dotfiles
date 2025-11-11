@@ -161,6 +161,7 @@ if [[ ! -d $DOTFILES_GIT_DIR ]]; then
     dotfiles config user.name "$USER"
     dotfiles config user.email "$USER@$HOST"
     dotfiles config pull.rebase false
+    dotfiles config status.showUntrackedFiles no
 fi
 
 if (( $+commands[emacs] )); then
