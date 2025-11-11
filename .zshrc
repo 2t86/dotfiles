@@ -3,6 +3,10 @@
 #     `-.-' \ )-`( , o o)
 #            `-   \`_`"'-
 
+if (( DEBUG )); then
+    set -x
+fi
+
 if (( $+commands[tmux] && ! $+TMUX && $+SSH_CONNECTION )); then
     tmux has -t ssh 2>/dev/null && exec tmux attach -t ssh
     exec tmux new -s ssh
@@ -197,3 +201,7 @@ fi
 () { zcompile-all $@; src-all $@ } ~/.zshrc.*~*.zwc~*~
 
 unfunction zcompile-all src-all src-plug evalcache compcache
+
+if (( DEBUG )); then
+    set +x
+fi
