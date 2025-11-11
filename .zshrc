@@ -1,3 +1,8 @@
+#  _._     _,-'""`-._
+# (,-.`._,'(       |\`-/|
+#     `-.-' \ )-`( , o o)
+#            `-   \`_`"'-
+
 if (( $+commands[tmux] && ! $+TMUX && $+SSH_CONNECTION )); then
     tmux has -t ssh 2>/dev/null && exec tmux attach -t ssh
     exec tmux new -s ssh
@@ -96,17 +101,17 @@ function src-plug() {
     fi
 }
 
-function eval-cache() {
-    local cmd=$1 cache=~/.cache/zsh/eval/${1%% *}.zsh
-    if [[ ! -s $cache ]]; then
-        install -Dm0644 /dev/null $cache
-        eval $cmd > $cache
+function evalcache() {
+    local cmd=$1 evalfile=~/.local/share/zsh/eval/${1%% *}.zsh
+    if [[ ! -s $evalfile ]]; then
+        install -Dm0644 /dev/null $evalfile
+        eval $cmd > $evalfile
     fi
-    zcompile-all $cache
-    source $cache
+    zcompile-all $evalfile
+    source $evalfile
 }
 
-function func-cache() {
+function compcache() {
     local cmd=$1 compfile=~/.local/share/zsh/site-functions/_${1%% *}
     if [[ ! -s $compfile ]]; then
         install -Dm0644 /dev/null $compfile
@@ -159,12 +164,11 @@ if (( $+commands[emacs] )); then
 fi
 
 if (( $+commands[niri] )); then
-   eval-cache 'niri completions zsh'
+   evalcache 'niri completions zsh'
 fi
 
 if (( $+commands[nnn] )); then
-    export NNN_OPTS=aAdJo
-    export NNN_OPENER=nuke
+    export NNN_OPTS=acdo
 
     if (( $+commands[trash] )); then
         export NNN_TRASH=1
@@ -182,10 +186,14 @@ if (( $+commands[pass] )); then
     export PASSWORD_STORE_ENABLE_EXTENSIONS=true
 fi
 
+if (( $+commands[tuios] )); then
+    compcache 'tuios completion zsh'
+fi
+
 if (( $+commands[vim] )); then
     export EDITOR=vim
 fi
 
 () { zcompile-all $@; src-all $@ } ~/.zshrc.*~*.zwc~*~
 
-unfunction zcompile-all src-all src-plug eval-cache func-cache
+unfunction zcompile-all src-all src-plug evalcache compcache
