@@ -22,7 +22,7 @@ autocmd VimEnter * if len(filter(values(g:plugs), '!isdirectory(v:val.dir)'))
 call plug#begin('~/.vim/plugged')
 call plug#end()
 
-" colorscheme darkblue
+"colorscheme darkblue
 
 set ignorecase
 

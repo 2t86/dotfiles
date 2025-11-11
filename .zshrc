@@ -1,3 +1,7 @@
+if (( DEBUG )); then
+    set -x
+fi
+
 if (( $+commands[tmux] && ! $+TMUX && $+SSH_CONNECTION )); then
     tmux has -t ssh 2>/dev/null && exec tmux attach -t ssh
     exec tmux new -s ssh
@@ -96,8 +100,8 @@ function src-plug() {
     fi
 }
 
-function eval-cache() {
-    local cmd=$1 cache=~/.cache/zsh/eval/${1%% *}.zsh
+function evalcache() {
+    local cmd=$1 cache=~/.local/share/zsh/eval/${1%% *}.zsh
     if [[ ! -s $cache ]]; then
         install -Dm0644 /dev/null $cache
         eval $cmd > $cache
@@ -106,7 +110,7 @@ function eval-cache() {
     source $cache
 }
 
-function func-cache() {
+function compcache() {
     local cmd=$1 compfile=~/.local/share/zsh/site-functions/_${1%% *}
     if [[ ! -s $compfile ]]; then
         install -Dm0644 /dev/null $compfile
@@ -154,12 +158,20 @@ if [[ ! -d $DOTFILES_GIT_DIR ]]; then
     dotfiles config pull.rebase false
 fi
 
+if (( $+commands[cargo] )); then
+    path+=(~/.cargo/bin(N-/))
+fi
+
 if (( $+commands[emacs] )); then
     alias emacs='emacsclient -a emacs -t'
 fi
 
+if (( $+commands[glow] )); then
+    compcache 'glow completion zsh'
+fi
+
 if (( $+commands[niri] )); then
-   eval-cache 'niri completions zsh'
+   compcache 'niri completions zsh'
 fi
 
 if (( $+commands[nnn] )); then
@@ -188,4 +200,8 @@ fi
 
 () { zcompile-all $@; src-all $@ } ~/.zshrc.*~*.zwc~*~
 
-unfunction zcompile-all src-all src-plug eval-cache func-cache
+unfunction zcompile-all src-all src-plug evalcache compcache
+
+if (( DEBUG )); then
+    set +x
+fi

@@ -41,6 +41,9 @@ white   = "#ffffff"
 [cursor]
 style = { shape = "Underline", blinking = "Never" }
 
+[terminal]
+shell = "/opt/homebrew/bin/tuios"
+
 [keyboard]
 bindings = [
   { key = "T",     mods = "Super",         command = { program = "/opt/homebrew/bin/tmux", args = [ "neww" ] } },
