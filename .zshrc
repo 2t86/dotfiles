@@ -1,3 +1,7 @@
+if (( DEBUG )); then
+    set -x
+fi
+
 if (( $+commands[tmux] && ! $+TMUX && $+SSH_CONNECTION )); then
     tmux has -t ssh 2>/dev/null && exec tmux attach -t ssh
     exec tmux new -s ssh
@@ -164,7 +168,6 @@ fi
 
 if (( $+commands[nnn] )); then
     export NNN_OPTS=aAdJo
-    export NNN_OPENER=nuke
 
     if (( $+commands[trash] )); then
         export NNN_TRASH=1
@@ -189,3 +192,7 @@ fi
 () { zcompile-all $@; src-all $@ } ~/.zshrc.*~*.zwc~*~
 
 unfunction zcompile-all src-all src-plug eval-cache func-cache
+
+if (( DEBUG )); then
+    set +x
+fi
