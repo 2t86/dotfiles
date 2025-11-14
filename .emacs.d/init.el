@@ -138,6 +138,13 @@
   :custom
   (ido-vertical-define-keys 'C-n-C-p-up-and-down))
 
+(use-package org
+  :ensure nil
+  :init
+  (let ((org-config-file (expand-file-name "~/org/org-config.el")))
+    (when (file-exists-p org-config-file)
+      (load-file org-config-file))))
+
 (use-package whitespace
   :ensure nil
   :hook ((after-init . global-whitespace-mode)
