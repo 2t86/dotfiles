@@ -1,6 +1,0 @@
-#!/bin/bash
-# Video filter plugin for nnn
-
-tmpfile=$(mktemp)
-video-tracker ifilt > "$tmpfile"
-printf "%s" "$tmpfile" > "$NNN_PIPE"
