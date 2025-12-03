@@ -3,7 +3,7 @@ doubletap.key = 'alt'
 
 doubletap.action = function()
    local appName = 'WezTerm'
-   local app = hs.application.get(appName)
+      local app = hs.application.get(appName)
    if app == nil or not app:isFrontmost() then
       hs.application.launchOrFocus(appName)
    elseif app:isFrontmost() then
@@ -19,6 +19,7 @@ local lang = {
 
 local apps = {
    ["Alacritty"] = "en",
+   ["WezTerm"] = "en",
    ["Slack"] = "ja",
 }
 
@@ -34,3 +35,5 @@ local function setim(name, type_, obj)
 
 local appwatcher = hs.application.watcher.new(setim)
 appwatcher:start()
+
+hs.hotkey.bind({"cmd"}, "h", function() end)

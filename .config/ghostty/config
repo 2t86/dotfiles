@@ -1,0 +1,38 @@
+font-family             = Iosevka Term
+font-family-bold        = Iosevka Term Bold
+font-family-italic      = Iosevka Term Italic
+font-family-bold-italic = Iosevka Term Bold Italic
+font-size               = 16
+
+theme = Adventure Time
+
+cursor-style       = bar
+cursor-style-blink = false
+
+scrollback-limit = 100000
+
+window-padding-x = 10
+window-padding-y = 10
+
+quick-terminal-position = center
+quick-terminal-size     = 20%
+quick-terminal-autohide = true
+
+shell-integration = zsh
+shell-integration-features = ssh-env,ssh-terminfo
+
+keybind = super+enter=new_split:down
+keybind = super+shift+enter=new_split:right
+
+keybind = super+shift+h=goto_split:left
+keybind = super+shift+j=goto_split:down
+keybind = super+shift+k=goto_split:up
+keybind = super+shift+l=goto_split:right
+
+keybind = super+ctrl+h=resize_split:left,10
+keybind = super+ctrl+j=resize_split:down,10
+keybind = super+ctrl+k=resize_split:up,10
+keybind = super+ctrl+l=resize_split:right,10
+
+keybind = super+alt+equal=equalize_splits
+keybind = super+ctrl+z=toggle_split_zoom
