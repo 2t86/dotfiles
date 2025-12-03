@@ -174,6 +174,24 @@ if (( $+commands[emacs] )); then
     alias emacs='emacsclient -a emacs -t'
 fi
 
+if (( $+commands[eww] )); then
+    compcache 'eww shell-completions --shell zsh'
+fi
+
+if (( $+commands[ghq] )); then
+    cdpath+=(~/ghq(N-/))
+    function zaw-src-ghq-repos() {
+        candidates=(${(@)$(ghq list)})
+        actions=("zaw-ghq-cd")
+    }
+    function zaw-ghq-cd() {
+        BUFFER="cd '$1'"
+        zle accept-line
+    }
+    zaw-register-src -n ghq-repos zaw-src-ghq-repos
+    bindkey g zaw-ghq-repos
+fi
+
 if (( $+commands[glow] )); then
     compcache 'glow completion zsh'
 fi

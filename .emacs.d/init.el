@@ -225,7 +225,7 @@
   (push '("*eshell*" :height 30 :dedicated t :stick t) popwin:special-display-config)
   (push '("*Warnings*") popwin:special-display-config))
 
-;; (use-package xclip :hook (after-init . xclip-mode))
+(use-package xclip :hook (after-init . xclip-mode))
 
 (use-package dockerfile-mode)
 (use-package editorconfig)
